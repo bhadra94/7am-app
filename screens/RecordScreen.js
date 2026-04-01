@@ -239,10 +239,12 @@ export default function RecordScreen({ navigation }) {
           </View>
         )}
 
-        <View style={s.scriptBox}>
-          <Text style={s.scriptLabel}>say this out loud</Text>
-          <Text style={s.scriptText}>"{script}"</Text>
-        </View>
+        {clipIndex === 0 && (
+          <View style={s.scriptBox}>
+            <Text style={s.scriptLabel}>say this out loud</Text>
+            <Text style={s.scriptText}>"{script}"</Text>
+          </View>
+        )}
 
         {isRecording && (
           <View style={s.timerBar}>

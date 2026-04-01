@@ -121,7 +121,7 @@ export default function BrowseScreen({ navigation }) {
         </View>
       </SafeAreaView>
 
-      {clip.script && (
+      {clip.script && clip.clip_number === 1 && (
         <View style={s.scriptBox}>
           <Text style={s.scriptLabel}>they said</Text>
           <Text style={s.scriptText}>"{clip.script}"</Text>
