@@ -30,12 +30,35 @@ export default function BrowseScreen({ navigation }) {
     const { data: userData } = await supabase.auth.getUser();
     const myId = userData?.user?.id;
     setCurrentUserId(myId);
+
+    // Get my profile to know my preferences
+    const { data: myProfile } = await supabase
+      .from('profiles')
+      .select('gender, interested_in')
+      .eq('id', myId)
+      .single();
+
     const { data: myLikes } = await supabase.from('likes').select('liked_id').eq('liker_id', myId);
     const likedIds = (myLikes || []).map((l) => l.liked_id);
-    const { data: allProfiles } = await supabase.from('profiles').select('id, name, created_at');
+    const { data: allProfiles } = await supabase.from('profiles').select('id, name, age, gender, interested_in, created_at');
     const { data: allClips } = await supabase.from('clips').select('*').order('clip_number');
+
+    // Filter by preference
+    const genderMap = { men: 'man', women: 'woman' };
     const combined = (allProfiles || [])
-      .filter((p) => p.id !== myId && !likedIds.includes(p.id))
+      .filter((p) => {
+        if (p.id === myId) return false;
+        if (likedIds.includes(p.id)) return false;
+        // Filter by my preference
+        if (myProfile?.interested_in && myProfile.interested_in !== 'everyone') {
+          if (p.gender !== genderMap[myProfile.interested_in]) return false;
+        }
+        // Filter by their preference
+        if (p.interested_in && p.interested_in !== 'everyone') {
+          if (myProfile?.gender !== genderMap[p.interested_in]) return false;
+        }
+        return true;
+      })
       .map((profile) => ({
         ...profile,
         clips: (allClips || []).filter((c) => c.user_id === profile.id).sort((a, b) => a.clip_number - b.clip_number),
@@ -112,7 +135,7 @@ export default function BrowseScreen({ navigation }) {
         </View>
         <View style={s.nameRow}>
           <View>
-            <Text style={s.name}>{profile.name.toLowerCase()}</Text>
+            <Text style={s.name}>{profile.name.toLowerCase()}{profile.age ? `, ${profile.age}` : ''}</Text>
             <Text style={s.clipLabel}>{clipLabels[clip.clip_number] || 'clip'}</Text>
           </View>
           <TouchableOpacity style={s.closeBtn} onPress={() => navigation.goBack()}>

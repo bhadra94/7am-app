@@ -7,18 +7,24 @@ import {
   SafeAreaView,
   Alert,
   ActivityIndicator,
+  Dimensions,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Video } from 'expo-av';
 import { supabase } from '../supabase';
 import { uploadClip } from '../uploadClip';
 
+const { width: W, height: H } = Dimensions.get('window');
+const OVAL_W = W * 0.62;
+const OVAL_H = OVAL_W * 1.35;
+const OVAL_TOP = H * 0.22;
+
 const clips = [
   {
     id: 1,
     label: 'your face',
-    instruction: 'hold the camera at arm\'s length\nfill the frame with your face',
-    duration: 10,
+    instruction: 'fit your face inside the oval',
+    duration: 15,
   },
   {
     id: 2,
@@ -32,6 +38,15 @@ const clips = [
     instruction: 'show us where you are right now\nyour room, your street, your life',
     duration: 10,
   },
+];
+
+const facePhases = [
+  { type: 'prep', duration: 2, text: 'get ready — look straight ahead' },
+  { type: 'record', duration: 3, text: 'look straight ahead' },
+  { type: 'prep', duration: 2, text: 'now turn your face to the left' },
+  { type: 'record', duration: 3, text: 'turn your face to the left' },
+  { type: 'prep', duration: 2, text: 'now turn your face to the right' },
+  { type: 'record', duration: 3, text: 'turn your face to the right' },
 ];
 
 const scripts = [
@@ -103,6 +118,34 @@ function ReviewClip({ uri, onAccept, onRetake, clipLabel, uploading }) {
   );
 }
 
+function FaceOvalOverlay({ guideText, isRecording, phaseType }) {
+  return (
+    <View style={s.overlayContainer} pointerEvents="none">
+      {/* Top mask */}
+      <View style={[s.mask, { top: 0, left: 0, right: 0, height: OVAL_TOP }]} />
+      {/* Bottom mask */}
+      <View style={[s.mask, { top: OVAL_TOP + OVAL_H, left: 0, right: 0, bottom: 0 }]} />
+      {/* Left mask */}
+      <View style={[s.mask, { top: OVAL_TOP, left: 0, width: (W - OVAL_W) / 2, height: OVAL_H }]} />
+      {/* Right mask */}
+      <View style={[s.mask, { top: OVAL_TOP, right: 0, width: (W - OVAL_W) / 2, height: OVAL_H }]} />
+      {/* Oval border */}
+      <View style={[s.ovalBorder, {
+        borderColor: isRecording
+          ? phaseType === 'record' ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.3)'
+          : 'rgba(255,255,255,0.4)',
+      }]} />
+      {/* Guide text below oval */}
+      <View style={s.guideTextWrap}>
+        <Text style={s.guideText}>{guideText}</Text>
+        {isRecording && phaseType === 'prep' && (
+          <Text style={s.guideSubtext}>get ready...</Text>
+        )}
+      </View>
+    </View>
+  );
+}
+
 export default function RecordScreen({ navigation }) {
   const [permission, requestPermission] = useCameraPermissions();
   const [clipIndex, setClipIndex] = useState(0);
@@ -114,11 +157,15 @@ export default function RecordScreen({ navigation }) {
   const [uploading, setUploading] = useState(false);
   const [facing, setFacing] = useState('front');
   const [userId, setUserId] = useState(null);
+  const [faceGuideText, setFaceGuideText] = useState(facePhases[0].text);
+  const [facePhaseType, setFacePhaseType] = useState('prep');
   const cameraRef = useRef(null);
   const timerRef = useRef(null);
   const scriptRef = useRef(script);
+  const elapsedRef = useRef(0);
 
   const currentClip = clips[clipIndex];
+  const isFaceClip = clipIndex === 0;
 
   useEffect(() => {
     async function getUser() {
@@ -149,20 +196,64 @@ export default function RecordScreen({ navigation }) {
   async function startRecording() {
     if (!cameraRef.current) return;
     setIsRecording(true);
-    setTimeLeft(currentClip.duration);
-    let remaining = currentClip.duration;
-    timerRef.current = setInterval(() => {
-      remaining--;
-      setTimeLeft(remaining);
-      if (remaining <= 0) { clearInterval(timerRef.current); stopRecording(); }
-    }, 1000);
-    try {
-      const video = await cameraRef.current.recordAsync({ maxDuration: currentClip.duration });
-      setRecordedUri(video.uri);
-    } catch (err) {
-      console.log('Recording error:', err);
-      Alert.alert('recording failed', 'something went wrong. try again.');
-      setIsRecording(false);
+    elapsedRef.current = 0;
+
+    if (isFaceClip) {
+      setFaceGuideText(facePhases[0].text);
+      setFacePhaseType(facePhases[0].type);
+
+      // Calculate total duration and set timer
+      const totalDuration = facePhases.reduce((sum, p) => sum + p.duration, 0);
+      setTimeLeft(totalDuration);
+      let remaining = totalDuration;
+      let phaseElapsed = 0;
+      let currentPhaseIndex = 0;
+
+      timerRef.current = setInterval(() => {
+        remaining--;
+        phaseElapsed++;
+        setTimeLeft(remaining);
+        elapsedRef.current++;
+
+        // Check if current phase is done
+        if (phaseElapsed >= facePhases[currentPhaseIndex].duration) {
+          currentPhaseIndex++;
+          phaseElapsed = 0;
+          if (currentPhaseIndex < facePhases.length) {
+            setFaceGuideText(facePhases[currentPhaseIndex].text);
+            setFacePhaseType(facePhases[currentPhaseIndex].type);
+          }
+        }
+
+        if (remaining <= 0) { clearInterval(timerRef.current); stopRecording(); }
+      }, 1000);
+
+      try {
+        const video = await cameraRef.current.recordAsync({ maxDuration: totalDuration });
+        setRecordedUri(video.uri);
+      } catch (err) {
+        console.log('Recording error:', err);
+        Alert.alert('recording failed', 'something went wrong. try again.');
+        setIsRecording(false);
+      }
+    } else {
+      // Normal recording for clips 2 and 3
+      setTimeLeft(currentClip.duration);
+      let remaining = currentClip.duration;
+      timerRef.current = setInterval(() => {
+        remaining--;
+        setTimeLeft(remaining);
+        if (remaining <= 0) { clearInterval(timerRef.current); stopRecording(); }
+      }, 1000);
+
+      try {
+        const video = await cameraRef.current.recordAsync({ maxDuration: currentClip.duration });
+        setRecordedUri(video.uri);
+      } catch (err) {
+        console.log('Recording error:', err);
+        Alert.alert('recording failed', 'something went wrong. try again.');
+        setIsRecording(false);
+      }
     }
   }
 
@@ -180,7 +271,7 @@ export default function RecordScreen({ navigation }) {
       await uploadClip({
         uri: recordedUri, userId,
         clipNumber: currentClip.id, label: currentClip.label,
-        script: scriptRef.current,
+        script: isFaceClip ? scriptRef.current : '',
       });
       setRecordedUri(null);
       setUploading(false);
@@ -212,6 +303,16 @@ export default function RecordScreen({ navigation }) {
   return (
     <View style={s.container}>
       <CameraView ref={cameraRef} style={s.camera} facing={facing} mode="video">
+
+        {/* Face oval overlay for clip 1 */}
+        {isFaceClip && (
+          <FaceOvalOverlay
+            guideText={isRecording ? faceGuideText : 'fit your face inside the oval'}
+            isRecording={isRecording}
+            phaseType={facePhaseType}
+          />
+        )}
+
         <SafeAreaView style={s.topBar}>
           <View style={s.clipBadge}>
             <Text style={s.clipBadgeText}>
@@ -227,8 +328,8 @@ export default function RecordScreen({ navigation }) {
         <View style={s.progressDots}>
           {clips.map((c, i) => (
             <View key={c.id} style={[s.progressDot, {
-              backgroundColor: i < clipIndex ? '#fff' : i === clipIndex ? '#fff' : '#444',
-              opacity: i < clipIndex ? 0.4 : i === clipIndex ? 1 : 0.3,
+              backgroundColor: '#fff',
+              opacity: i < clipIndex ? 0.4 : i === clipIndex ? 1 : 0.2,
             }]} />
           ))}
         </View>
@@ -239,7 +340,8 @@ export default function RecordScreen({ navigation }) {
           </View>
         )}
 
-        {clipIndex === 0 && (
+        {/* Script only on clip 1 */}
+        {isFaceClip && (
           <View style={s.scriptBox}>
             <Text style={s.scriptLabel}>say this out loud</Text>
             <Text style={s.scriptText}>"{script}"</Text>
@@ -253,8 +355,15 @@ export default function RecordScreen({ navigation }) {
           </View>
         )}
 
-        <View style={s.bottomBar}>
-          <Text style={s.instruction}>{currentClip.instruction}</Text>
+        {/* Instruction for clips 2 and 3 */}
+        {!isFaceClip && (
+          <View style={s.bottomBar}>
+            <Text style={s.instruction}>{currentClip.instruction}</Text>
+          </View>
+        )}
+
+        {/* Record / stop button */}
+        <View style={[s.recordBtnWrap, isFaceClip && { bottom: 50 }]}>
           {!isRecording && countdown === null && (
             <TouchableOpacity style={s.recordBtn} onPress={startCountdown}>
               <View style={s.recordBtnInner} />
@@ -275,31 +384,82 @@ const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0a0a0f' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 48 },
   camera: { flex: 1 },
+
+  // Face oval overlay
+  overlayContainer: {
+    ...StyleSheet.absoluteFillObject, zIndex: 5,
+  },
+  mask: {
+    position: 'absolute', backgroundColor: 'rgba(0,0,0,0.7)',
+  },
+  ovalBorder: {
+    position: 'absolute',
+    top: OVAL_TOP,
+    left: (W - OVAL_W) / 2,
+    width: OVAL_W,
+    height: OVAL_H,
+    borderRadius: OVAL_W / 2,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.4)',
+  },
+  guideTextWrap: {
+    position: 'absolute',
+    top: OVAL_TOP + OVAL_H + 20,
+    left: 0, right: 0,
+    alignItems: 'center',
+  },
+  guideText: {
+    fontSize: 16, fontWeight: '600', color: '#fff',
+    textAlign: 'center',
+  },
+  guideSubtext: {
+    fontSize: 12, color: 'rgba(255,255,255,0.4)',
+    textAlign: 'center', marginTop: 6,
+  },
+
+  // Permission
   permTitle: { fontSize: 24, fontWeight: '700', color: '#fff', marginBottom: 12 },
   permBody: { fontSize: 15, color: '#52525b', textAlign: 'center', lineHeight: 22, marginBottom: 32 },
   permBtn: { backgroundColor: '#fff', paddingVertical: 16, paddingHorizontal: 40, borderRadius: 14 },
   permBtnText: { color: '#0a0a0f', fontSize: 16, fontWeight: '600' },
-  topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingTop: 8 },
+
+  // Top bar
+  topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingTop: 8, zIndex: 10 },
   clipBadge: { backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 },
   clipBadgeText: { color: '#fff', fontSize: 13, fontWeight: '500' },
   flipBtn: { backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 },
   flipBtnText: { color: '#fff', fontSize: 13, fontWeight: '500' },
-  progressDots: { flexDirection: 'row', justifyContent: 'center', gap: 6, marginTop: 12 },
+
+  // Progress
+  progressDots: { flexDirection: 'row', justifyContent: 'center', gap: 6, marginTop: 12, zIndex: 10 },
   progressDot: { width: 28, height: 3, borderRadius: 1.5 },
-  countdownOverlay: { ...StyleSheet.absoluteFillObject, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)' },
+
+  // Countdown
+  countdownOverlay: { ...StyleSheet.absoluteFillObject, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 20 },
   countdownNum: { fontSize: 80, fontWeight: '800', color: '#fff' },
-  scriptBox: { position: 'absolute', top: '28%', left: 24, right: 24, backgroundColor: 'rgba(0,0,0,0.6)', padding: 18, borderRadius: 14, alignItems: 'center' },
+
+  // Script
+  scriptBox: { position: 'absolute', bottom: 130, left: 24, right: 24, backgroundColor: 'rgba(0,0,0,0.6)', padding: 18, borderRadius: 14, alignItems: 'center', zIndex: 10 },
   scriptLabel: { fontSize: 11, fontWeight: '600', color: '#71717a', letterSpacing: 1, marginBottom: 8, textTransform: 'uppercase' },
   scriptText: { fontSize: 16, color: '#fff', fontWeight: '500', textAlign: 'center', lineHeight: 24, fontStyle: 'italic' },
-  timerBar: { position: 'absolute', top: '22%', alignSelf: 'center', flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, gap: 8 },
+
+  // Timer
+  timerBar: { position: 'absolute', top: OVAL_TOP - 40, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, gap: 8, zIndex: 10 },
   recDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#ef4444' },
   timerText: { color: '#fff', fontSize: 14, fontWeight: '600' },
-  bottomBar: { position: 'absolute', bottom: 40, left: 0, right: 0, alignItems: 'center', paddingHorizontal: 24 },
-  instruction: { fontSize: 14, color: '#fff', textAlign: 'center', marginBottom: 24, lineHeight: 20, opacity: 0.7 },
+
+  // Bottom bar (clips 2 & 3)
+  bottomBar: { position: 'absolute', bottom: 130, left: 0, right: 0, alignItems: 'center', paddingHorizontal: 24, zIndex: 10 },
+  instruction: { fontSize: 14, color: '#fff', textAlign: 'center', lineHeight: 20, opacity: 0.7 },
+
+  // Record button
+  recordBtnWrap: { position: 'absolute', bottom: 40, left: 0, right: 0, alignItems: 'center', zIndex: 10 },
   recordBtn: { width: 72, height: 72, borderRadius: 36, borderWidth: 3, borderColor: '#fff', justifyContent: 'center', alignItems: 'center' },
   recordBtnInner: { width: 56, height: 56, borderRadius: 28, backgroundColor: '#fff' },
   stopBtn: { width: 72, height: 72, borderRadius: 36, borderWidth: 3, borderColor: '#fff', justifyContent: 'center', alignItems: 'center' },
   stopBtnInner: { width: 28, height: 28, borderRadius: 4, backgroundColor: '#ef4444' },
+
+  // Review
   reviewHeader: { alignItems: 'center', paddingTop: 60, paddingBottom: 16 },
   reviewTitle: { fontSize: 18, fontWeight: '600', color: '#fff' },
   videoWrap: { flex: 1, marginHorizontal: 20, marginVertical: 12, borderRadius: 16, overflow: 'hidden' },

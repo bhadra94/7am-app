@@ -20,6 +20,9 @@ export default function ProfileScreen({ navigation }) {
   const [name, setName] = useState('');
   const [editingName, setEditingName] = useState(false);
   const [newName, setNewName] = useState('');
+  const [age, setAge] = useState(null);
+  const [gender, setGender] = useState('');
+  const [interestedIn, setInterestedIn] = useState('');
   const [clips, setClips] = useState([]);
   const [activeClip, setActiveClip] = useState(null);
   const [userId, setUserId] = useState(null);
@@ -39,13 +42,16 @@ export default function ProfileScreen({ navigation }) {
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('name')
+      .select('name, age, gender, interested_in')
       .eq('id', uid)
       .single();
 
     if (profile) {
       setName(profile.name);
       setNewName(profile.name);
+      setAge(profile.age);
+      setGender(profile.gender || '');
+      setInterestedIn(profile.interested_in || '');
     }
 
     const { data: userClips } = await supabase
@@ -169,6 +175,25 @@ export default function ProfileScreen({ navigation }) {
         <View style={s.section}>
           <Text style={s.sectionLabel}>email</Text>
           <Text style={s.emailText}>{email}</Text>
+        </View>
+
+        {/* Details section */}
+        <View style={s.section}>
+          <Text style={s.sectionLabel}>details</Text>
+          <View style={s.detailsGrid}>
+            <View style={s.detailCard}>
+              <Text style={s.detailLabel}>age</Text>
+              <Text style={s.detailValue}>{age || '—'}</Text>
+            </View>
+            <View style={s.detailCard}>
+              <Text style={s.detailLabel}>gender</Text>
+              <Text style={s.detailValue}>{gender || '—'}</Text>
+            </View>
+            <View style={s.detailCard}>
+              <Text style={s.detailLabel}>interested in</Text>
+              <Text style={s.detailValue}>{interestedIn || '—'}</Text>
+            </View>
+          </View>
         </View>
 
         {/* Clips section */}
@@ -300,6 +325,13 @@ const s = StyleSheet.create({
   saveBtnText: { color: '#0a0a0f', fontSize: 14, fontWeight: '600' },
   cancelText: { color: '#52525b', fontSize: 14 },
   emailText: { fontSize: 15, color: '#52525b' },
+  detailsGrid: { flexDirection: 'row', gap: 10 },
+  detailCard: {
+    flex: 1, backgroundColor: '#18181b', borderRadius: 12,
+    padding: 14, alignItems: 'center',
+  },
+  detailLabel: { fontSize: 11, color: '#3f3f46', marginBottom: 4 },
+  detailValue: { fontSize: 15, fontWeight: '600', color: '#fff' },
   clipGrid: { gap: 16 },
   clipCard: {
     backgroundColor: '#18181b', borderRadius: 14, padding: 16,
