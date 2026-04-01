@@ -9,10 +9,11 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
 import { supabase } from '../supabase';
 
-function MatchesList({ matches, onSelect, onBack }) {
+function MatchesList({ matches, onSelect, onBack, onUnmatch }) {
   if (matches.length === 0) {
     return (
       <SafeAreaView style={s.container}>
@@ -46,7 +47,7 @@ function MatchesList({ matches, onSelect, onBack }) {
         data={matches}
         keyExtractor={(item) => item.matchId}
         contentContainerStyle={{ padding: 16 }}
-        renderItem={({ item }) => (
+                  renderItem={({ item }) => (
           <TouchableOpacity style={s.matchCard} onPress={() => onSelect(item)}>
             <View style={s.avatar}>
               <Text style={s.avatarText}>{item.name.charAt(0).toLowerCase()}</Text>
@@ -55,6 +56,29 @@ function MatchesList({ matches, onSelect, onBack }) {
               <Text style={s.matchName}>{item.name.toLowerCase()}</Text>
               <Text style={s.matchSub}>{item.lastMessage || 'say hello'}</Text>
             </View>
+            <TouchableOpacity
+              style={s.unmatchBtn}
+              onPress={() => {
+                Alert.alert(
+                  'unmatch?',
+                  `this will remove your match with ${item.name.toLowerCase()} and delete your conversation.`,
+                  [
+                    { text: 'cancel', style: 'cancel' },
+                    {
+                      text: 'unmatch',
+                      style: 'destructive',
+                      onPress: async () => {
+                        await supabase.from('messages').delete().eq('match_id', item.matchId);
+                        await supabase.from('matches').delete().eq('id', item.matchId);
+                        onUnmatch(item.matchId);
+                      },
+                    },
+                  ]
+                );
+              }}
+            >
+              <Text style={s.unmatchText}>x</Text>
+            </TouchableOpacity>
           </TouchableOpacity>
         )}
       />
@@ -62,7 +86,7 @@ function MatchesList({ matches, onSelect, onBack }) {
   );
 }
 
-function ChatView({ match, currentUserId, onBack }) {
+function ChatView({ match, currentUserId, onBack, onUnmatch }) {
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
@@ -99,7 +123,40 @@ function ChatView({ match, currentUserId, onBack }) {
           <Text style={s.backText}>back</Text>
         </TouchableOpacity>
         <Text style={s.chatName}>{match.name.toLowerCase()}</Text>
-        <View style={{ width: 40 }} />
+        <TouchableOpacity onPress={() => {
+          Alert.alert(
+            'report or block',
+            `what would you like to do with ${match.name.toLowerCase()}?`,
+            [
+              { text: 'cancel', style: 'cancel' },
+              {
+                text: 'block & unmatch',
+                style: 'destructive',
+                onPress: async () => {
+                  await supabase.from('blocks').insert({ blocker_id: currentUserId, blocked_id: match.otherId });
+                  await supabase.from('messages').delete().eq('match_id', match.matchId);
+                  await supabase.from('matches').delete().eq('id', match.matchId);
+                  Alert.alert('blocked', 'you won\'t see this person again.');
+                  onUnmatch(match.matchId);
+                },
+              },
+              {
+                text: 'report & block',
+                style: 'destructive',
+                onPress: async () => {
+                  await supabase.from('reports').insert({ reporter_id: currentUserId, reported_id: match.otherId, reason: 'reported from chat' });
+                  await supabase.from('blocks').insert({ blocker_id: currentUserId, blocked_id: match.otherId });
+                  await supabase.from('messages').delete().eq('match_id', match.matchId);
+                  await supabase.from('matches').delete().eq('id', match.matchId);
+                  Alert.alert('reported', 'thanks for keeping 7am safe.');
+                  onUnmatch(match.matchId);
+                },
+              },
+            ]
+          );
+        }}>
+          <Text style={s.reportText}>report</Text>
+        </TouchableOpacity>
       </View>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <FlatList
@@ -163,10 +220,12 @@ export default function MatchesScreen({ navigation }) {
 
   if (selectedMatch) {
     return <ChatView match={selectedMatch} currentUserId={currentUserId}
-      onBack={() => { setSelectedMatch(null); loadMatches(); }} />;
+      onBack={() => { setSelectedMatch(null); loadMatches(); }}
+      onUnmatch={(matchId) => { setSelectedMatch(null); setMatches(matches.filter((m) => m.matchId !== matchId)); }} />;
   }
 
-  return <MatchesList matches={matches} onSelect={setSelectedMatch} onBack={() => navigation.goBack()} />;
+  return <MatchesList matches={matches} onSelect={setSelectedMatch} onBack={() => navigation.goBack()}
+    onUnmatch={(matchId) => setMatches(matches.filter((m) => m.matchId !== matchId))} />;
 }
 
 const s = StyleSheet.create({
@@ -181,8 +240,14 @@ const s = StyleSheet.create({
   matchInfo: { flex: 1 },
   matchName: { fontSize: 16, fontWeight: '600', color: '#fff' },
   matchSub: { fontSize: 13, color: '#52525b', marginTop: 2 },
+  unmatchBtn: {
+    width: 28, height: 28, borderRadius: 14,
+    backgroundColor: '#27272a', justifyContent: 'center', alignItems: 'center',
+  },
+  unmatchText: { color: '#52525b', fontSize: 12, fontWeight: '500' },
   chatHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingVertical: 14, borderBottomWidth: 0.5, borderBottomColor: '#1a1a2e' },
   chatName: { fontSize: 16, fontWeight: '600', color: '#fff' },
+  reportText: { color: '#52525b', fontSize: 13 },
   msgList: { padding: 16, paddingBottom: 8 },
   msgRow: { flexDirection: 'row', marginBottom: 6 },
   msgBubble: { maxWidth: '75%', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 16 },

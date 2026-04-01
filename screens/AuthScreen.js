@@ -42,6 +42,7 @@ export default function AuthScreen({ navigation }) {
   const [age, setAge] = useState('');
   const [gender, setGender] = useState('');
   const [interestedIn, setInterestedIn] = useState('');
+  const [bio, setBio] = useState('');
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit() {
@@ -106,6 +107,7 @@ export default function AuthScreen({ navigation }) {
                 age: parseInt(age),
                 gender,
                 interested_in: interestedIn,
+                bio: bio.trim(),
               });
             if (!profileError) {
               profileCreated = true;
@@ -188,6 +190,16 @@ export default function AuthScreen({ navigation }) {
                   ]}
                   selected={interestedIn}
                   onSelect={setInterestedIn}
+                />
+
+                <TextInput
+                  style={[s.input, { height: 80, textAlignVertical: 'top' }]}
+                  placeholder="short bio (optional)"
+                  placeholderTextColor="#3f3f46"
+                  value={bio}
+                  onChangeText={setBio}
+                  multiline
+                  maxLength={150}
                 />
               </>
             )}

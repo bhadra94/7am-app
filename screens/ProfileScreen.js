@@ -23,6 +23,9 @@ export default function ProfileScreen({ navigation }) {
   const [age, setAge] = useState(null);
   const [gender, setGender] = useState('');
   const [interestedIn, setInterestedIn] = useState('');
+  const [bio, setBio] = useState('');
+  const [editingBio, setEditingBio] = useState(false);
+  const [newBio, setNewBio] = useState('');
   const [clips, setClips] = useState([]);
   const [activeClip, setActiveClip] = useState(null);
   const [userId, setUserId] = useState(null);
@@ -42,7 +45,7 @@ export default function ProfileScreen({ navigation }) {
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('name, age, gender, interested_in')
+      .select('name, age, gender, interested_in, bio')
       .eq('id', uid)
       .single();
 
@@ -52,6 +55,8 @@ export default function ProfileScreen({ navigation }) {
       setAge(profile.age);
       setGender(profile.gender || '');
       setInterestedIn(profile.interested_in || '');
+      setBio(profile.bio || '');
+      setNewBio(profile.bio || '');
     }
 
     const { data: userClips } = await supabase
@@ -194,6 +199,57 @@ export default function ProfileScreen({ navigation }) {
               <Text style={s.detailValue}>{interestedIn || '—'}</Text>
             </View>
           </View>
+        </View>
+
+        {/* Bio section */}
+        <View style={s.section}>
+          <Text style={s.sectionLabel}>bio</Text>
+          {editingBio ? (
+            <View style={s.editBioWrap}>
+              <TextInput
+                style={s.bioInput}
+                value={newBio}
+                onChangeText={setNewBio}
+                multiline
+                maxLength={150}
+                autoFocus
+                placeholder="write something about yourself..."
+                placeholderTextColor="#3f3f46"
+              />
+              <Text style={s.bioCount}>{newBio.length}/150</Text>
+              <View style={s.editBioRow}>
+                <TouchableOpacity
+                  style={s.saveBtn}
+                  onPress={async () => {
+                    const { error } = await supabase
+                      .from('profiles')
+                      .update({ bio: newBio.trim() })
+                      .eq('id', userId);
+                    if (!error) {
+                      setBio(newBio.trim());
+                      setEditingBio(false);
+                    }
+                  }}
+                >
+                  <Text style={s.saveBtnText}>save</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => {
+                    setNewBio(bio);
+                    setEditingBio(false);
+                  }}
+                >
+                  <Text style={s.cancelText}>cancel</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <TouchableOpacity onPress={() => setEditingBio(true)}>
+              <Text style={bio ? s.bioText : s.bioPlaceholder}>
+                {bio || 'tap to add a bio'}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Clips section */}
@@ -376,6 +432,15 @@ const s = StyleSheet.create({
   },
   detailLabel: { fontSize: 11, color: '#3f3f46', marginBottom: 4 },
   detailValue: { fontSize: 15, fontWeight: '600', color: '#fff' },
+  bioText: { fontSize: 15, color: '#a1a1aa', lineHeight: 22 },
+  bioPlaceholder: { fontSize: 15, color: '#3f3f46', fontStyle: 'italic' },
+  editBioWrap: { gap: 8 },
+  bioInput: {
+    backgroundColor: '#18181b', borderRadius: 12, padding: 14,
+    color: '#fff', fontSize: 15, minHeight: 80, textAlignVertical: 'top',
+  },
+  bioCount: { fontSize: 11, color: '#3f3f46', textAlign: 'right' },
+  editBioRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   clipGrid: { gap: 16 },
   clipCard: {
     backgroundColor: '#18181b', borderRadius: 14, padding: 16,

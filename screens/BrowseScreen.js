@@ -109,7 +109,7 @@ export default function BrowseScreen({ navigation }) {
 
     const { data: myLikes } = await supabase.from('likes').select('liked_id').eq('liker_id', myId);
     const likedIds = (myLikes || []).map((l) => l.liked_id);
-    const { data: allProfiles } = await supabase.from('profiles').select('id, name, age, gender, interested_in, created_at');
+    const { data: allProfiles } = await supabase.from('profiles').select('id, name, age, gender, interested_in, bio, created_at');
     const { data: allClips } = await supabase.from('clips').select('*').order('clip_number');
 
     const genderMap = { men: 'man', women: 'woman' };
@@ -155,6 +155,50 @@ export default function BrowseScreen({ navigation }) {
         setMatchModal(profile.name);
       } else { nextProfile(); }
     } catch (err) { nextProfile(); }
+  }
+
+  function handleReport() {
+    const profile = profiles[profileIndex];
+    if (!profile || !currentUserId) return;
+    Alert.alert(
+      'report or block',
+      `what would you like to do with ${profile.name.toLowerCase()}?`,
+      [
+        { text: 'cancel', style: 'cancel' },
+        {
+          text: 'block',
+          onPress: async () => {
+            await supabase.from('blocks').insert({ blocker_id: currentUserId, blocked_id: profile.id });
+            Alert.alert('blocked', 'you won\'t see this person again.');
+            nextProfile();
+          },
+        },
+        {
+          text: 'report & block',
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert(
+              'reason for report',
+              'why are you reporting this person?',
+              [
+                { text: 'inappropriate content', onPress: () => submitReport(profile.id, 'inappropriate content') },
+                { text: 'fake profile', onPress: () => submitReport(profile.id, 'fake profile') },
+                { text: 'harassment', onPress: () => submitReport(profile.id, 'harassment') },
+                { text: 'other', onPress: () => submitReport(profile.id, 'other') },
+                { text: 'cancel', style: 'cancel' },
+              ]
+            );
+          },
+        },
+      ]
+    );
+  }
+
+  async function submitReport(reportedId, reason) {
+    await supabase.from('reports').insert({ reporter_id: currentUserId, reported_id: reportedId, reason });
+    await supabase.from('blocks').insert({ blocker_id: currentUserId, blocked_id: reportedId });
+    Alert.alert('reported', 'thanks for keeping 7am safe. you won\'t see this person again.');
+    nextProfile();
   }
 
   // --- TUTORIAL ---
@@ -232,13 +276,19 @@ export default function BrowseScreen({ navigation }) {
             ))}
           </View>
           <View style={s.nameRow}>
-            <View>
+            <View style={{ flex: 1 }}>
               <Text style={s.name}>{profile.name.toLowerCase()}{profile.age ? `, ${profile.age}` : ''}</Text>
               <Text style={s.clipLabel}>{clipLabels[clip.clip_number] || 'clip'}</Text>
+              {profile.bio ? <Text style={s.bioText}>{profile.bio}</Text> : null}
             </View>
-            <TouchableOpacity style={s.closeBtn} onPress={() => navigation.goBack()}>
-              <Text style={s.closeBtnText}>x</Text>
-            </TouchableOpacity>
+            <View style={s.topBtns}>
+              <TouchableOpacity style={s.reportBtn} onPress={handleReport}>
+                <Text style={s.reportBtnText}>...</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.closeBtn} onPress={() => navigation.goBack()}>
+                <Text style={s.closeBtnText}>x</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </SafeAreaView>
 
@@ -330,8 +380,12 @@ const s = StyleSheet.create({
   nameRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   name: { fontSize: 28, fontWeight: '800', color: '#fff', textShadowColor: 'rgba(0,0,0,0.5)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 },
   clipLabel: { fontSize: 14, color: 'rgba(255,255,255,0.6)', marginTop: 2, textShadowColor: 'rgba(0,0,0,0.5)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 },
+  bioText: { fontSize: 13, color: 'rgba(255,255,255,0.5)', marginTop: 6, lineHeight: 18, textShadowColor: 'rgba(0,0,0,0.5)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 },
   closeBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' },
   closeBtnText: { color: '#fff', fontSize: 14, fontWeight: '500' },
+  topBtns: { flexDirection: 'row', gap: 8 },
+  reportBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' },
+  reportBtnText: { color: '#fff', fontSize: 16, fontWeight: '700', marginTop: -4 },
 
   // Script
   scriptBox: { position: 'absolute', bottom: 20, left: 20, right: 20, backgroundColor: 'rgba(0,0,0,0.5)', padding: 14, borderRadius: 12, alignItems: 'center', zIndex: 3 },
