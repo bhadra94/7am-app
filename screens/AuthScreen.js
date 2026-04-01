@@ -92,16 +92,31 @@ export default function AuthScreen({ navigation }) {
 
         const userId = data.user?.id;
         if (userId) {
-          const { error: profileError } = await supabase
-            .from('profiles')
-            .insert({
-              id: userId,
-              name: name.trim(),
-              age: parseInt(age),
-              gender,
-              interested_in: interestedIn,
-            });
-          if (profileError) console.log('Profile error:', profileError);
+          // Retry profile creation with a small delay
+          // Supabase Auth sometimes needs a moment to commit the user
+          let retries = 3;
+          let profileCreated = false;
+          while (retries > 0 && !profileCreated) {
+            await new Promise((r) => setTimeout(r, 1000));
+            const { error: profileError } = await supabase
+              .from('profiles')
+              .insert({
+                id: userId,
+                name: name.trim(),
+                age: parseInt(age),
+                gender,
+                interested_in: interestedIn,
+              });
+            if (!profileError) {
+              profileCreated = true;
+            } else {
+              console.log('Profile retry:', retries, profileError.message);
+              retries--;
+            }
+          }
+          if (!profileCreated) {
+            console.log('Profile creation failed after retries');
+          }
         }
 
         Alert.alert(
