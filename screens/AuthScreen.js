@@ -10,6 +10,7 @@ import {
   Platform,
   Alert,
 } from 'react-native';
+import { supabase } from '../supabase';
 
 export default function AuthScreen({ navigation }) {
   const [isLogin, setIsLogin] = useState(false);
@@ -19,7 +20,6 @@ export default function AuthScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit() {
-    // Basic checks
     if (!email.includes('@') || !email.includes('.')) {
       Alert.alert('Invalid email', 'Please enter a valid email address.');
       return;
@@ -35,12 +35,43 @@ export default function AuthScreen({ navigation }) {
 
     setLoading(true);
 
-    // TODO: Connect to Supabase auth (we'll do this next)
-    // For now, simulate a short delay and move to Home
-    setTimeout(() => {
-      setLoading(false);
-      navigation.replace('Home');
-    }, 1000);
+    try {
+      if (isLogin) {
+        // --- LOG IN ---
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+        if (error) throw error;
+        navigation.replace('Home');
+      } else {
+        // --- SIGN UP ---
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+        });
+        if (error) throw error;
+
+        // Create profile in database
+        const userId = data.user?.id;
+        if (userId) {
+          const { error: profileError } = await supabase
+            .from('profiles')
+            .insert({ id: userId, name: name.trim() });
+          if (profileError) console.log('Profile error:', profileError);
+        }
+
+        Alert.alert(
+          'Account created!',
+          'Check your email for a confirmation link, then log in. (For testing, you can log in directly.)',
+          [{ text: 'OK', onPress: () => setIsLogin(true) }]
+        );
+      }
+    } catch (error) {
+      Alert.alert('Error', error.message);
+    }
+
+    setLoading(false);
   }
 
   return (
@@ -49,7 +80,6 @@ export default function AuthScreen({ navigation }) {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={s.inner}
       >
-        {/* Header */}
         <View style={s.header}>
           <Text style={s.logo}>7AM</Text>
           <Text style={s.tagline}>
@@ -57,7 +87,6 @@ export default function AuthScreen({ navigation }) {
           </Text>
         </View>
 
-        {/* Form */}
         <View style={s.form}>
           {!isLogin && (
             <View style={s.inputWrap}>
@@ -113,7 +142,6 @@ export default function AuthScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* Toggle login / signup */}
         <View style={s.toggle}>
           <Text style={s.toggleText}>
             {isLogin ? "Don't have an account?" : 'Already have an account?'}

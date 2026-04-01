@@ -7,13 +7,15 @@ import {
   SafeAreaView,
   Alert,
   Dimensions,
+  ActivityIndicator,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Video } from 'expo-av';
+import { supabase } from '../supabase';
+import { uploadClip } from '../uploadClip';
 
 const { width } = Dimensions.get('window');
 
-// --- CLIP DEFINITIONS ---
 const clips = [
   {
     id: 1,
@@ -38,7 +40,6 @@ const clips = [
   },
 ];
 
-// --- RANDOM SCRIPTS TO READ ---
 const scripts = [
   "The best meal I ever had was something really simple.",
   "If I could live anywhere for a year it would be somewhere warm.",
@@ -56,7 +57,6 @@ function getRandomScript() {
   return scripts[Math.floor(Math.random() * scripts.length)];
 }
 
-// --- PERMISSION SCREEN ---
 function PermissionRequest({ onGrant }) {
   return (
     <SafeAreaView style={s.container}>
@@ -74,8 +74,7 @@ function PermissionRequest({ onGrant }) {
   );
 }
 
-// --- REVIEW SCREEN (after recording a clip) ---
-function ReviewClip({ uri, onAccept, onRetake, clipLabel }) {
+function ReviewClip({ uri, onAccept, onRetake, clipLabel, uploading }) {
   return (
     <SafeAreaView style={s.container}>
       <View style={s.reviewHeader}>
@@ -92,19 +91,25 @@ function ReviewClip({ uri, onAccept, onRetake, clipLabel }) {
           resizeMode="cover"
         />
       </View>
-      <View style={s.reviewBtns}>
-        <TouchableOpacity style={s.retakeBtn} onPress={onRetake}>
-          <Text style={s.retakeBtnText}>Retake</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={s.acceptBtn} onPress={onAccept}>
-          <Text style={s.btnText}>Looks Good ✓</Text>
-        </TouchableOpacity>
-      </View>
+      {uploading ? (
+        <View style={s.uploadingBar}>
+          <ActivityIndicator color="#818cf8" size="small" />
+          <Text style={s.uploadingText}>Uploading clip...</Text>
+        </View>
+      ) : (
+        <View style={s.reviewBtns}>
+          <TouchableOpacity style={s.retakeBtn} onPress={onRetake}>
+            <Text style={s.retakeBtnText}>Retake</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.acceptBtn} onPress={onAccept}>
+            <Text style={s.btnText}>Looks Good ✓</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
 
-// --- MAIN RECORD SCREEN ---
 export default function RecordScreen({ navigation }) {
   const [permission, requestPermission] = useCameraPermissions();
   const [clipIndex, setClipIndex] = useState(0);
@@ -113,21 +118,34 @@ export default function RecordScreen({ navigation }) {
   const [timeLeft, setTimeLeft] = useState(0);
   const [recordedUri, setRecordedUri] = useState(null);
   const [script, setScript] = useState(getRandomScript());
-  const [savedClips, setSavedClips] = useState([]);
+  const [uploading, setUploading] = useState(false);
   const [facing, setFacing] = useState('front');
+  const [userId, setUserId] = useState(null);
   const cameraRef = useRef(null);
   const timerRef = useRef(null);
+  const scriptRef = useRef(script);
 
   const currentClip = clips[clipIndex];
 
-  // Cleanup timer on unmount
+  // Get current user ID on mount
+  useEffect(() => {
+    async function getUser() {
+      const { data } = await supabase.auth.getUser();
+      if (data?.user) setUserId(data.user.id);
+    }
+    getUser();
+  }, []);
+
+  useEffect(() => {
+    scriptRef.current = script;
+  }, [script]);
+
   useEffect(() => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, []);
 
-  // --- COUNTDOWN BEFORE RECORDING ---
   function startCountdown() {
     setCountdown(3);
     let count = 3;
@@ -143,13 +161,11 @@ export default function RecordScreen({ navigation }) {
     }, 1000);
   }
 
-  // --- START RECORDING ---
   async function startRecording() {
     if (!cameraRef.current) return;
     setIsRecording(true);
     setTimeLeft(currentClip.duration);
 
-    // Timer that counts down
     let remaining = currentClip.duration;
     timerRef.current = setInterval(() => {
       remaining--;
@@ -172,7 +188,6 @@ export default function RecordScreen({ navigation }) {
     }
   }
 
-  // --- STOP RECORDING ---
   async function stopRecording() {
     if (!cameraRef.current) return;
     cameraRef.current.stopRecording();
@@ -180,39 +195,52 @@ export default function RecordScreen({ navigation }) {
     if (timerRef.current) clearInterval(timerRef.current);
   }
 
-  // --- ACCEPT CLIP & MOVE TO NEXT ---
-  function acceptClip() {
-    const updated = [...savedClips, { ...currentClip, uri: recordedUri }];
-    setSavedClips(updated);
-    setRecordedUri(null);
+  async function acceptClip() {
+    if (!userId) {
+      Alert.alert('Error', 'Not logged in. Please restart the app.');
+      return;
+    }
 
-    if (clipIndex < clips.length - 1) {
-      setClipIndex(clipIndex + 1);
-      setScript(getRandomScript());
-    } else {
-      // All 3 clips done!
-      Alert.alert(
-        'Profile Complete! 🎉',
-        'All 3 clips recorded. In the next update, these will upload to your profile.',
-        [{ text: 'Awesome', onPress: () => navigation.replace('Home') }]
-      );
+    setUploading(true);
+    try {
+      await uploadClip({
+        uri: recordedUri,
+        userId,
+        clipNumber: currentClip.id,
+        label: currentClip.label,
+        script: scriptRef.current,
+      });
+
+      setRecordedUri(null);
+      setUploading(false);
+
+      if (clipIndex < clips.length - 1) {
+        setClipIndex(clipIndex + 1);
+        setScript(getRandomScript());
+      } else {
+        Alert.alert(
+          'Profile Complete! 🎉',
+          'All 3 clips recorded and uploaded!',
+          [{ text: 'Awesome', onPress: () => navigation.replace('Home') }]
+        );
+      }
+    } catch (err) {
+      setUploading(false);
+      Alert.alert('Upload Failed', err.message + '\n\nYou can try again.');
     }
   }
 
-  // --- RETAKE CLIP ---
   function retakeClip() {
     setRecordedUri(null);
     setScript(getRandomScript());
   }
 
-  // --- PERMISSIONS NOT GRANTED YET ---
   if (!permission) return <View style={s.container} />;
 
   if (!permission.granted) {
     return <PermissionRequest onGrant={requestPermission} />;
   }
 
-  // --- REVIEWING A RECORDED CLIP ---
   if (recordedUri) {
     return (
       <ReviewClip
@@ -220,11 +248,11 @@ export default function RecordScreen({ navigation }) {
         clipLabel={currentClip.label}
         onAccept={acceptClip}
         onRetake={retakeClip}
+        uploading={uploading}
       />
     );
   }
 
-  // --- CAMERA / RECORDING VIEW ---
   return (
     <View style={s.container}>
       <CameraView
@@ -233,7 +261,6 @@ export default function RecordScreen({ navigation }) {
         facing={facing}
         mode="video"
       >
-        {/* Top bar: clip info + flip camera */}
         <SafeAreaView style={s.topBar}>
           <View style={s.clipBadge}>
             <Text style={s.clipBadgeText}>
@@ -248,7 +275,6 @@ export default function RecordScreen({ navigation }) {
           </TouchableOpacity>
         </SafeAreaView>
 
-        {/* Progress dots */}
         <View style={s.progressDots}>
           {clips.map((c, i) => (
             <View
@@ -268,20 +294,17 @@ export default function RecordScreen({ navigation }) {
           ))}
         </View>
 
-        {/* Countdown overlay */}
         {countdown !== null && (
           <View style={s.countdownOverlay}>
             <Text style={s.countdownNum}>{countdown}</Text>
           </View>
         )}
 
-        {/* Script to read */}
         <View style={s.scriptBox}>
           <Text style={s.scriptLabel}>READ THIS OUT LOUD:</Text>
           <Text style={s.scriptText}>"{script}"</Text>
         </View>
 
-        {/* Recording timer */}
         {isRecording && (
           <View style={s.timerBar}>
             <View style={s.recDot} />
@@ -289,7 +312,6 @@ export default function RecordScreen({ navigation }) {
           </View>
         )}
 
-        {/* Bottom: instruction + record button */}
         <View style={s.bottomBar}>
           <Text style={s.instruction}>{currentClip.instruction}</Text>
 
@@ -310,7 +332,6 @@ export default function RecordScreen({ navigation }) {
   );
 }
 
-// --- STYLES ---
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0a0a0f' },
   center: {
@@ -318,8 +339,6 @@ const s = StyleSheet.create({
     paddingHorizontal: 40,
   },
   camera: { flex: 1 },
-
-  // Permission screen
   permTitle: {
     fontSize: 24, fontWeight: '800', color: '#f4f4f5',
     textAlign: 'center', marginBottom: 12,
@@ -328,8 +347,6 @@ const s = StyleSheet.create({
     fontSize: 15, color: '#71717a', textAlign: 'center',
     lineHeight: 22, marginBottom: 32,
   },
-
-  // Top bar
   topBar: {
     flexDirection: 'row', justifyContent: 'space-between',
     alignItems: 'center', paddingHorizontal: 16, paddingTop: 8,
@@ -343,33 +360,22 @@ const s = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.6)', width: 44, height: 44,
     borderRadius: 22, justifyContent: 'center', alignItems: 'center',
   },
-
-  // Progress dots
   progressDots: {
     flexDirection: 'row', justifyContent: 'center',
     gap: 8, marginTop: 12,
   },
-  progressDot: {
-    width: 32, height: 4, borderRadius: 2,
-  },
-
-  // Countdown
+  progressDot: { width: 32, height: 4, borderRadius: 2 },
   countdownOverlay: {
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'center', alignItems: 'center',
     backgroundColor: 'rgba(0,0,0,0.5)',
   },
-  countdownNum: {
-    fontSize: 96, fontWeight: '900', color: '#fff',
-  },
-
-  // Script
+  countdownNum: { fontSize: 96, fontWeight: '900', color: '#fff' },
   scriptBox: {
     position: 'absolute', top: '28%',
     left: 20, right: 20,
     backgroundColor: 'rgba(0,0,0,0.7)',
-    padding: 16, borderRadius: 12,
-    alignItems: 'center',
+    padding: 16, borderRadius: 12, alignItems: 'center',
   },
   scriptLabel: {
     fontSize: 11, fontWeight: '700', color: '#818cf8',
@@ -379,58 +385,40 @@ const s = StyleSheet.create({
     fontSize: 17, color: '#fff', fontWeight: '500',
     textAlign: 'center', lineHeight: 24, fontStyle: 'italic',
   },
-
-  // Timer
   timerBar: {
-    position: 'absolute', top: '22%',
-    alignSelf: 'center',
+    position: 'absolute', top: '22%', alignSelf: 'center',
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: 'rgba(239,68,68,0.8)',
-    paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20,
-    gap: 8,
+    paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, gap: 8,
   },
-  recDot: {
-    width: 10, height: 10, borderRadius: 5, backgroundColor: '#fff',
-  },
+  recDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#fff' },
   timerText: { color: '#fff', fontSize: 15, fontWeight: '700' },
-
-  // Bottom bar
   bottomBar: {
     position: 'absolute', bottom: 40,
-    left: 0, right: 0, alignItems: 'center',
-    paddingHorizontal: 20,
+    left: 0, right: 0, alignItems: 'center', paddingHorizontal: 20,
   },
   instruction: {
     fontSize: 14, color: '#fff', textAlign: 'center',
     marginBottom: 24, lineHeight: 20,
     textShadowColor: 'rgba(0,0,0,0.8)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
+    textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4,
   },
-
-  // Record button
   recordBtn: {
     width: 76, height: 76, borderRadius: 38,
     borderWidth: 4, borderColor: '#fff',
     justifyContent: 'center', alignItems: 'center',
   },
   recordBtnInner: {
-    width: 60, height: 60, borderRadius: 30,
-    backgroundColor: '#ef4444',
+    width: 60, height: 60, borderRadius: 30, backgroundColor: '#ef4444',
   },
-
-  // Stop button
   stopBtn: {
     width: 76, height: 76, borderRadius: 38,
     borderWidth: 4, borderColor: '#ef4444',
     justifyContent: 'center', alignItems: 'center',
   },
   stopBtnInner: {
-    width: 30, height: 30, borderRadius: 4,
-    backgroundColor: '#ef4444',
+    width: 30, height: 30, borderRadius: 4, backgroundColor: '#ef4444',
   },
-
-  // Review screen
   reviewHeader: { alignItems: 'center', paddingTop: 60, paddingBottom: 16 },
   reviewTitle: { fontSize: 20, fontWeight: '700', color: '#f4f4f5' },
   reviewSub: { fontSize: 14, color: '#71717a', marginTop: 4 },
@@ -452,8 +440,11 @@ const s = StyleSheet.create({
     flex: 1, paddingVertical: 16, borderRadius: 14,
     backgroundColor: '#4ade80', alignItems: 'center',
   },
-
-  // Shared
+  uploadingBar: {
+    flexDirection: 'row', justifyContent: 'center', alignItems: 'center',
+    gap: 12, paddingBottom: 50,
+  },
+  uploadingText: { color: '#818cf8', fontSize: 15, fontWeight: '600' },
   btn: {
     width: '100%', paddingVertical: 16, borderRadius: 14,
     backgroundColor: '#6366f1', alignItems: 'center',
