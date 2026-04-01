@@ -284,6 +284,50 @@ export default function ProfileScreen({ navigation }) {
           >
             <Text style={s.logoutBtnText}>log out</Text>
           </TouchableOpacity>
+          <TouchableOpacity
+            style={s.deleteBtn}
+            onPress={() => {
+              Alert.alert(
+                'delete account?',
+                'this will permanently delete your profile, clips, matches, and messages. this cannot be undone.',
+                [
+                  { text: 'cancel', style: 'cancel' },
+                  {
+                    text: 'delete my account',
+                    style: 'destructive',
+                    onPress: async () => {
+                      try {
+                        // Delete video files from storage
+                        const { data: files } = await supabase.storage
+                          .from('clips')
+                          .list(userId);
+
+                        if (files && files.length > 0) {
+                          const paths = files.map((f) => `${userId}/${f.name}`);
+                          await supabase.storage.from('clips').remove(paths);
+                        }
+
+                        // Call the database function to delete everything
+                        const { error } = await supabase.rpc('delete_own_account');
+
+                        if (error) {
+                          Alert.alert('error', 'could not delete account. try again.');
+                          console.log('Delete error:', error);
+                        } else {
+                          await supabase.auth.signOut();
+                        }
+                      } catch (err) {
+                        Alert.alert('error', 'something went wrong.');
+                        console.log('Delete error:', err);
+                      }
+                    },
+                  },
+                ]
+              );
+            }}
+          >
+            <Text style={s.deleteBtnText}>delete account</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -375,4 +419,9 @@ const s = StyleSheet.create({
     backgroundColor: '#18181b', alignItems: 'center',
   },
   logoutBtnText: { color: '#52525b', fontSize: 15, fontWeight: '500' },
+  deleteBtn: {
+    paddingVertical: 16, borderRadius: 14,
+    alignItems: 'center', marginTop: 10,
+  },
+  deleteBtnText: { color: '#ef4444', fontSize: 14, fontWeight: '500' },
 });
