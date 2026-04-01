@@ -45,8 +45,8 @@ export default function HomeScreen({ navigation }) {
     <SafeAreaView style={s.container}>
       <View style={s.header}>
         <Text style={s.logo}>7am</Text>
-        <TouchableOpacity onPress={handleLogout}>
-          <Text style={s.logout}>log out</Text>
+        <TouchableOpacity onPress={() => navigation.navigate('Profile')}>
+          <Text style={s.profileLink}>profile</Text>
         </TouchableOpacity>
       </View>
 
@@ -110,6 +110,7 @@ const s = StyleSheet.create({
     fontSize: 22, fontWeight: '900', color: '#fff', letterSpacing: -1,
   },
   logout: { color: '#3f3f46', fontSize: 14 },
+  profileLink: { color: '#52525b', fontSize: 14 },
   center: {
     flex: 1, justifyContent: 'center', paddingHorizontal: 48,
   },

@@ -10,6 +10,7 @@ import HomeScreen from './screens/HomeScreen';
 import RecordScreen from './screens/RecordScreen';
 import BrowseScreen from './screens/BrowseScreen';
 import MatchesScreen from './screens/MatchesScreen';
+import ProfileScreen from './screens/ProfileScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -35,7 +36,7 @@ export default function App() {
   if (!ready) {
     return (
       <View style={s.loading}>
-        <ActivityIndicator size="large" color="#818cf8" />
+        <ActivityIndicator size="large" color="#fff" />
       </View>
     );
   }
@@ -49,6 +50,7 @@ export default function App() {
             <Stack.Screen name="Record" component={RecordScreen} />
             <Stack.Screen name="Browse" component={BrowseScreen} />
             <Stack.Screen name="Matches" component={MatchesScreen} />
+            <Stack.Screen name="Profile" component={ProfileScreen} />
           </>
         ) : (
           <>
