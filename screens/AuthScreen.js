@@ -21,15 +21,15 @@ export default function AuthScreen({ navigation }) {
 
   async function handleSubmit() {
     if (!email.includes('@') || !email.includes('.')) {
-      Alert.alert('Invalid email', 'Please enter a valid email address.');
+      Alert.alert('invalid email', 'please enter a valid email address.');
       return;
     }
     if (password.length < 6) {
-      Alert.alert('Weak password', 'Password must be at least 6 characters.');
+      Alert.alert('weak password', 'password must be at least 6 characters.');
       return;
     }
     if (!isLogin && name.trim().length < 2) {
-      Alert.alert('Name required', 'Please enter your name.');
+      Alert.alert('name required', 'please enter your name.');
       return;
     }
 
@@ -37,22 +37,18 @@ export default function AuthScreen({ navigation }) {
 
     try {
       if (isLogin) {
-        // --- LOG IN ---
         const { error } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
         if (error) throw error;
-        // App.js auth listener will automatically switch to Home
       } else {
-        // --- SIGN UP ---
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
         });
         if (error) throw error;
 
-        // Create profile in database
         const userId = data.user?.id;
         if (userId) {
           const { error: profileError } = await supabase
@@ -62,13 +58,13 @@ export default function AuthScreen({ navigation }) {
         }
 
         Alert.alert(
-          'Account created!',
-          'Check your email for a confirmation link, then log in. (For testing, you can log in directly.)',
-          [{ text: 'OK', onPress: () => setIsLogin(true) }]
+          'account created',
+          'you can now log in.',
+          [{ text: 'ok', onPress: () => setIsLogin(true) }]
         );
       }
     } catch (error) {
-      Alert.alert('Error', error.message);
+      Alert.alert('error', error.message);
     }
 
     setLoading(false);
@@ -81,51 +77,39 @@ export default function AuthScreen({ navigation }) {
         style={s.inner}
       >
         <View style={s.header}>
-          <Text style={s.logo}>7AM</Text>
-          <Text style={s.tagline}>
-            {isLogin ? 'Welcome back.' : 'Show up as you are.'}
-          </Text>
+          <Text style={s.logo}>7am</Text>
         </View>
 
         <View style={s.form}>
           {!isLogin && (
-            <View style={s.inputWrap}>
-              <Text style={s.label}>Your name</Text>
-              <TextInput
-                style={s.input}
-                placeholder="What should people call you?"
-                placeholderTextColor="#52525b"
-                value={name}
-                onChangeText={setName}
-                autoCapitalize="words"
-              />
-            </View>
+            <TextInput
+              style={s.input}
+              placeholder="your name"
+              placeholderTextColor="#3f3f46"
+              value={name}
+              onChangeText={setName}
+              autoCapitalize="words"
+            />
           )}
 
-          <View style={s.inputWrap}>
-            <Text style={s.label}>Email</Text>
-            <TextInput
-              style={s.input}
-              placeholder="you@email.com"
-              placeholderTextColor="#52525b"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-          </View>
+          <TextInput
+            style={s.input}
+            placeholder="email"
+            placeholderTextColor="#3f3f46"
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
+          />
 
-          <View style={s.inputWrap}>
-            <Text style={s.label}>Password</Text>
-            <TextInput
-              style={s.input}
-              placeholder="At least 6 characters"
-              placeholderTextColor="#52525b"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-            />
-          </View>
+          <TextInput
+            style={s.input}
+            placeholder="password"
+            placeholderTextColor="#3f3f46"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+          />
 
           <TouchableOpacity
             style={[s.btn, loading && s.btnDisabled]}
@@ -134,24 +118,24 @@ export default function AuthScreen({ navigation }) {
           >
             <Text style={s.btnText}>
               {loading
-                ? 'Hold on...'
+                ? 'hold on...'
                 : isLogin
-                ? 'Log In'
-                : 'Create Account'}
+                ? 'log in'
+                : 'create account'}
             </Text>
           </TouchableOpacity>
         </View>
 
-        <View style={s.toggle}>
+        <TouchableOpacity
+          style={s.toggle}
+          onPress={() => setIsLogin(!isLogin)}
+        >
           <Text style={s.toggleText}>
-            {isLogin ? "Don't have an account?" : 'Already have an account?'}
+            {isLogin
+              ? "don't have an account? sign up"
+              : 'already have an account? log in'}
           </Text>
-          <TouchableOpacity onPress={() => setIsLogin(!isLogin)}>
-            <Text style={s.toggleLink}>
-              {isLogin ? ' Sign Up' : ' Log In'}
-            </Text>
-          </TouchableOpacity>
-        </View>
+        </TouchableOpacity>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -160,40 +144,29 @@ export default function AuthScreen({ navigation }) {
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0a0a0f' },
   inner: {
-    flex: 1, justifyContent: 'center',
-    paddingHorizontal: 32,
+    flex: 1, justifyContent: 'center', paddingHorizontal: 48,
   },
-  header: { alignItems: 'center', marginBottom: 40 },
+  header: { alignItems: 'center', marginBottom: 48 },
   logo: {
-    fontSize: 48, fontWeight: '900', color: '#818cf8',
-    letterSpacing: -1, marginBottom: 8,
+    fontSize: 56, fontWeight: '900', color: '#fff',
+    letterSpacing: -2,
   },
-  tagline: {
-    fontSize: 16, color: '#71717a', fontWeight: '500',
-  },
-  form: { gap: 18 },
-  inputWrap: { gap: 6 },
-  label: {
-    fontSize: 13, fontWeight: '600', color: '#a1a1aa',
-    marginLeft: 4,
-  },
+  form: { gap: 14 },
   input: {
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: '#18181b',
     borderRadius: 12, padding: 16,
     color: '#fff', fontSize: 15,
   },
   btn: {
-    backgroundColor: '#6366f1',
-    paddingVertical: 16, borderRadius: 14,
-    alignItems: 'center', marginTop: 8,
+    backgroundColor: '#fff',
+    paddingVertical: 18, borderRadius: 14,
+    alignItems: 'center', marginTop: 6,
   },
-  btnDisabled: { opacity: 0.6 },
-  btnText: { color: '#fff', fontSize: 17, fontWeight: '700' },
-  toggle: {
-    flexDirection: 'row', justifyContent: 'center',
-    marginTop: 24,
+  btnDisabled: { opacity: 0.5 },
+  btnText: {
+    color: '#0a0a0f', fontSize: 16, fontWeight: '600',
+    letterSpacing: -0.3,
   },
-  toggleText: { color: '#71717a', fontSize: 14 },
-  toggleLink: { color: '#818cf8', fontSize: 14, fontWeight: '600' },
+  toggle: { alignItems: 'center', marginTop: 24 },
+  toggleText: { color: '#52525b', fontSize: 14 },
 });
