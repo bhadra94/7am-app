@@ -21,7 +21,6 @@ export default function HomeScreen({ navigation }) {
     const userId = userData?.user?.id;
     if (!userId) return;
 
-    // Get profile name
     const { data: profile } = await supabase
       .from('profiles')
       .select('name')
@@ -30,7 +29,6 @@ export default function HomeScreen({ navigation }) {
 
     if (profile) setName(profile.name);
 
-    // Check if user has recorded clips
     const { data: clips } = await supabase
       .from('clips')
       .select('id')
@@ -41,7 +39,7 @@ export default function HomeScreen({ navigation }) {
 
   async function handleLogout() {
     await supabase.auth.signOut();
-    navigation.replace('Auth');
+    // App.js auth listener will automatically switch to login screen
   }
 
   return (
@@ -72,6 +70,12 @@ export default function HomeScreen({ navigation }) {
             </TouchableOpacity>
             <TouchableOpacity
               style={s.secondaryBtn}
+              onPress={() => navigation.navigate('Matches')}
+            >
+              <Text style={s.secondaryBtnText}>My Matches 💬</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[s.secondaryBtn, { marginTop: 10 }]}
               onPress={() => navigation.navigate('Record')}
             >
               <Text style={s.secondaryBtnText}>Re-record My Clips</Text>

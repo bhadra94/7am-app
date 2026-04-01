@@ -43,7 +43,7 @@ export default function AuthScreen({ navigation }) {
           password,
         });
         if (error) throw error;
-        navigation.replace('Home');
+        // App.js auth listener will automatically switch to Home
       } else {
         // --- SIGN UP ---
         const { data, error } = await supabase.auth.signUp({
