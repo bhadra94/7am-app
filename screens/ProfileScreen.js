@@ -137,7 +137,9 @@ export default function ProfileScreen({ navigation }) {
           <Text style={s.backText}>back</Text>
         </TouchableOpacity>
         <Text style={s.headerTitle}>profile</Text>
-        <View style={{ width: 40 }} />
+        <TouchableOpacity onPress={() => navigation.navigate('Settings')}>
+          <Text style={s.settingsText}>settings</Text>
+        </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={s.scroll}>
@@ -399,6 +401,7 @@ const s = StyleSheet.create({
   },
   headerTitle: { fontSize: 16, fontWeight: '600', color: '#fff' },
   backText: { color: '#52525b', fontSize: 14 },
+  settingsText: { color: '#52525b', fontSize: 14 },
   scroll: { padding: 24, paddingBottom: 60 },
   section: { marginBottom: 36 },
   sectionLabel: {

@@ -11,6 +11,7 @@ import RecordScreen from './screens/RecordScreen';
 import BrowseScreen from './screens/BrowseScreen';
 import MatchesScreen from './screens/MatchesScreen';
 import ProfileScreen from './screens/ProfileScreen';
+import SettingsScreen from './screens/SettingsScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -51,6 +52,7 @@ export default function App() {
             <Stack.Screen name="Browse" component={BrowseScreen} />
             <Stack.Screen name="Matches" component={MatchesScreen} />
             <Stack.Screen name="Profile" component={ProfileScreen} />
+            <Stack.Screen name="Settings" component={SettingsScreen} />
           </>
         ) : (
           <>
