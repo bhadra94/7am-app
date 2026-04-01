@@ -1,32 +1,52 @@
 {
   "expo": {
-    "name": "7am-app",
+    "name": "7AM",
     "slug": "7am-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
-    "newArchEnabled": true,
+    "userInterfaceStyle": "dark",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#0a0a0f"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": false,
+      "bundleIdentifier": "com.sevenam.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "7AM needs camera access to record your profile clips.",
+        "NSMicrophoneUsageDescription": "7AM needs microphone access to capture your voice while recording clips."
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#0a0a0f"
       },
-      "edgeToEdgeEnabled": true
-    },
-    "web": {
-      "favicon": "./assets/favicon.png"
+      "package": "com.sevenam.app",
+      "permissions": [
+        "CAMERA",
+        "RECORD_AUDIO",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "7AM needs camera access to record your profile clips.",
+          "microphonePermission": "7AM needs microphone access to capture your voice while recording clips.",
+          "recordAudioAndroid": true
+        }
+      ],
       "expo-secure-store"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "6060a90a-8f50-44ea-a744-524693da8dfd"
+      }
+    }
   }
 }
