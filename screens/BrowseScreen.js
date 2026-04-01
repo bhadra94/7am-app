@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { Video } from 'expo-av';
 import { supabase } from '../supabase';
+import TutorialScreen from './TutorialScreen';
 
 const clipLabels = { 1: 'face', 2: 'body', 3: 'world' };
 
@@ -21,6 +22,7 @@ export default function BrowseScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [matchModal, setMatchModal] = useState(null);
+  const [showTutorial, setShowTutorial] = useState(true);
   const videoRef = useRef(null);
 
   useEffect(() => { loadProfiles(); }, []);
