@@ -1,15 +1,21 @@
-import { View, Text, StyleSheet, SafeAreaView } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity } from 'react-native';
 
-export default function HomeScreen() {
+export default function HomeScreen({ navigation }) {
   return (
     <SafeAreaView style={s.container}>
       <View style={s.center}>
         <Text style={s.logo}>7AM</Text>
         <Text style={s.msg}>You're in! 🎉</Text>
         <Text style={s.sub}>
-          This is where the video profiles will live.{'\n'}
-          We'll build the camera recording flow next.
+          Now let's create your profile.{'\n'}
+          Record your 3 clips to get started.
         </Text>
+        <TouchableOpacity
+          style={s.btn}
+          onPress={() => navigation.navigate('Record')}
+        >
+          <Text style={s.btnText}>Record My Clips 🎬</Text>
+        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
@@ -31,6 +37,11 @@ const s = StyleSheet.create({
   },
   sub: {
     fontSize: 15, color: '#71717a',
-    textAlign: 'center', lineHeight: 22,
+    textAlign: 'center', lineHeight: 22, marginBottom: 32,
   },
+  btn: {
+    width: '100%', paddingVertical: 16, borderRadius: 14,
+    backgroundColor: '#6366f1', alignItems: 'center',
+  },
+  btnText: { color: '#fff', fontSize: 17, fontWeight: '700' },
 });
